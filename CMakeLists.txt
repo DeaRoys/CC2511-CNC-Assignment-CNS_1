@@ -14,6 +14,7 @@ pico_sdk_init()
 add_executable(${projname}
         main.c
         mmhal.c
+        motion_control.c
         )
 
 target_link_libraries(${projname} pico_stdlib hardware_pwm)
