@@ -17,6 +17,10 @@ bool manual_mode = true;
 
 #define SPINDLE_PIN 15   // PWM pin for spindle
 
+#define STEPS_PER_MM_X 80.0
+#define STEPS_PER_MM_Y 80.0
+#define STEPS_PER_MM_Z 400.0
+
 // Machine state definitions
 typedef enum {
     IDLE,
@@ -135,6 +139,14 @@ void handle_manual_mode(int ch) {
 void handle_command_mode(int ch) {
     // Future G-code or structured command parser
 }
+
+int mm_to_steps(float mm, float steps_per_mm) {
+    return (int)(mm * steps_per_mm);
+}
+
+float x_mm = 10.0;
+int steps = mm_to_steps(x_mm, STEPS_PER_MM_X);
+move_x(steps, true);
 
 // ---------------- MAIN ----------------
 int main(void)
