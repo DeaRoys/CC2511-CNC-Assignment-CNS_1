@@ -20,6 +20,12 @@ float unit_scale = MM;
 bool manual_mode = true;
 uint16_t spindle_speed = 0;
 
+// -------- BUTTON DEFINITIONS --------
+#define BTN_COUNT 6
+const uint btn_pins[BTN_COUNT] = {27, 26, 4, 5, 6, 7};                      // LEFT, RIGHT, FORWARD, BACKWARD, UP, DOWN
+volatile bool btn_states[BTN_COUNT] = {true, true, true, true, true, true}; // released = true
+volatile bool btn_state_changed = false;
+
 // -------- BASIC FUNCTIONS --------
 int mm_to_steps(float mm, float steps_per_mm)
 {
@@ -257,30 +263,50 @@ void command_control(int ch)
         }
     }
 }
-void button_control()
+// -------- BUTTON INTERRUPTS --------
+void on_btn_gpio_change(uint gpio, uint32_t events)
 {
-    int step = 200; // smaller step for smoother control
-
-    // LOW = pressed
-    if (!gpio_get(BTN_LEFT))
-        move_x(step, false);
-
-    if (!gpio_get(BTN_RIGHT))
-        move_x(step, true);
-
-    if (!gpio_get(BTN_FORWARD))
-        move_y(step, false);
-
-    if (!gpio_get(BTN_BACKWARD))
-        move_y(step, true);
-
-    if (!gpio_get(BTN_UP))
-        move_z(step, true);
-
-    if (!gpio_get(BTN_DOWN))
-        move_z(step, false);
+    for (int i = 0; i < BTN_COUNT; i++)
+    {
+        if (gpio == btn_pins[i])
+        {
+            if (events & GPIO_IRQ_EDGE_RISE)
+                btn_states[i] = false; // pressed (HIGH)
+            else if (events & GPIO_IRQ_EDGE_FALL)
+                btn_states[i] = true; // released (LOW)
+            btn_state_changed = true;
+            break;
+        }
+    }
 }
 
+void init_btns()
+{
+    for (int i = 0; i < BTN_COUNT; i++)
+    {
+        gpio_init(btn_pins[i]);
+        gpio_set_dir(btn_pins[i], GPIO_IN);
+        // NO internal pull-up since you have external 10k to GND
+        gpio_set_irq_enabled_with_callback(btn_pins[i], GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &on_btn_gpio_change);
+    }
+}
+
+void process_btn_actions()
+{
+    int step = 200; // step size
+    if (!btn_states[0])
+        move_x(step, false); // LEFT
+    if (!btn_states[1])
+        move_x(step, true); // RIGHT
+    if (!btn_states[2])
+        move_y(step, false); // FORWARD
+    if (!btn_states[3])
+        move_y(step, true); // BACKWARD
+    if (!btn_states[4])
+        move_z(step, true); // UP
+    if (!btn_states[5])
+        move_z(step, false); // DOWN
+}
 // -------- MAIN --------
 int main()
 {
@@ -308,11 +334,12 @@ int main()
     gpio_set_dir(ENABLE_PIN, 1);
     gpio_put(ENABLE_PIN, 0); // LOW = enabled
 
-    // Set GPIO 28 HIGH (3.3V output)
+    // Set GPIO 28 HIGH
     gpio_init(GPIO28_PIN);
     gpio_set_dir(GPIO28_PIN, GPIO_OUT);
     gpio_put(GPIO28_PIN, 1); // Set HIGH (3.3V)
-    // Init buttons (INPUT + pull-up)
+
+    // Init buttons
     gpio_init(BTN_LEFT);
     gpio_set_dir(BTN_LEFT, GPIO_IN);
     gpio_pull_up(BTN_LEFT);
@@ -344,10 +371,14 @@ int main()
 
     while (true)
     {
-        // Read hardware buttons continuously
-        button_control();
+        // Handle button presses
+        if (btn_state_changed)
+        {
+            process_btn_actions();
+            btn_state_changed = false;
+        }
 
-        int ch = getchar_timeout_us(1000);
+        int ch = getchar_timeout_us(100);
 
         if (ch != PICO_ERROR_TIMEOUT)
         {
