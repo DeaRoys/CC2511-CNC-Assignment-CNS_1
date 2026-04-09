@@ -99,7 +99,7 @@ void hardware_test()
     move_z(500, false);
 
     printf("Testing spindle\n");
-    spindle_set_speed(30000); // ~46% duty cycle
+    spindle_set_speed(30000);
     sleep_ms(1000);
     spindle_set_speed(0);
 
@@ -139,13 +139,17 @@ void manual_control(int ch)
     case 'e':
         move_z(step, true);
         break; // forward
-        // Hardware test
-    case 't': // test button or key
+    case 't':  // test button or key
         printf("Starting spindle clockwise\n");
         mmhal_spindle_start_cw(30000); // PWM 30k
         break;
 
-    case 'y': // optional stop key
+    case 'r': // CCW
+        printf("Starting spindle anti-clockwise\n");
+        mmhal_spindle_start_ccw(30000);
+        break;
+
+    case 'y': // stop key
         mmhal_spindle_stop();
         break;
 
@@ -243,13 +247,38 @@ void command_control(int ch)
     }
 
     // Inside command_control after reading a line
-if (strncmp(buffer, "G04", 3) == 0) {
-    char *p = strchr(buffer, 'P');   // find P parameter
-    if (p) {
-        uint32_t dwell_time = atoi(p + 1);  // convert to milliseconds
-        mmhal_dwell_ms(dwell_time);         // pause machine
+    if (strncmp(buffer, "G04", 3) == 0)
+    {
+        char *p = strchr(buffer, 'P'); // find P parameter
+        if (p)
+        {
+            uint32_t dwell_time = atoi(p + 1); // convert to milliseconds
+            mmhal_dwell_ms(dwell_time);        // pause machine
+        }
     }
 }
+void button_control()
+{
+    int step = 200; // smaller step for smoother control
+
+    // LOW = pressed
+    if (!gpio_get(BTN_LEFT))
+        move_x(step, false);
+
+    if (!gpio_get(BTN_RIGHT))
+        move_x(step, true);
+
+    if (!gpio_get(BTN_FORWARD))
+        move_y(step, false);
+
+    if (!gpio_get(BTN_BACKWARD))
+        move_y(step, true);
+
+    if (!gpio_get(BTN_UP))
+        move_z(step, true);
+
+    if (!gpio_get(BTN_DOWN))
+        move_z(step, false);
 }
 
 // -------- MAIN --------
@@ -279,6 +308,35 @@ int main()
     gpio_set_dir(ENABLE_PIN, 1);
     gpio_put(ENABLE_PIN, 0); // LOW = enabled
 
+    // Set GPIO 28 HIGH (3.3V output)
+    gpio_init(GPIO28_PIN);
+    gpio_set_dir(GPIO28_PIN, GPIO_OUT);
+    gpio_put(GPIO28_PIN, 1); // Set HIGH (3.3V)
+    // Init buttons (INPUT + pull-up)
+    gpio_init(BTN_LEFT);
+    gpio_set_dir(BTN_LEFT, GPIO_IN);
+    gpio_pull_up(BTN_LEFT);
+
+    gpio_init(BTN_RIGHT);
+    gpio_set_dir(BTN_RIGHT, GPIO_IN);
+    gpio_pull_up(BTN_RIGHT);
+
+    gpio_init(BTN_FORWARD);
+    gpio_set_dir(BTN_FORWARD, GPIO_IN);
+    gpio_pull_up(BTN_FORWARD);
+
+    gpio_init(BTN_BACKWARD);
+    gpio_set_dir(BTN_BACKWARD, GPIO_IN);
+    gpio_pull_up(BTN_BACKWARD);
+
+    gpio_init(BTN_UP);
+    gpio_set_dir(BTN_UP, GPIO_IN);
+    gpio_pull_up(BTN_UP);
+
+    gpio_init(BTN_DOWN);
+    gpio_set_dir(BTN_DOWN, GPIO_IN);
+    gpio_pull_up(BTN_DOWN);
+
     spindle_init();
 
     printf("Hardware test running\n");
@@ -286,6 +344,9 @@ int main()
 
     while (true)
     {
+        // Read hardware buttons continuously
+        button_control();
+
         int ch = getchar_timeout_us(1000);
 
         if (ch != PICO_ERROR_TIMEOUT)

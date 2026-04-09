@@ -2,6 +2,12 @@
 #define __MMHAL_H__
 
 #include <stdint.h>
+#define BTN_LEFT     27
+#define BTN_RIGHT    26
+#define BTN_FORWARD  4
+#define BTN_BACKWARD 5
+#define BTN_UP       6
+#define BTN_DOWN     7
 
 ///////////////////////////////////////////////////////////////////////
 // Pins
@@ -40,6 +46,7 @@ enum
   GPIO26_PIN = 26,
   GPIO27_PIN = 27,
   GPIO28_PIN = 28
+
 };
 
 ///////////////////////////////////////////////////////////////////////

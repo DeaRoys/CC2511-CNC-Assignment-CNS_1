@@ -65,6 +65,16 @@ void mmhal_spindle_start_cw(uint16_t S)
     printf("Spindle CW started with PWM: %u\n", S);
 }
 
+void mmhal_spindle_start_ccw(uint16_t S)
+{
+    if (S > 65535) S = 65535;    // Clamp to max PWM
+    
+    mmhal_set_spindle_direction(0); // 0 = CCW (adjust based on your hardware)
+    mmhal_set_spindle_pwm(S);       // Set PWM on SPINDLE_PIN
+    
+    printf("Spindle CCW started with PWM: %u\n", S);
+}
+
 /**
  * @brief Stop spindle (M05)
  */
