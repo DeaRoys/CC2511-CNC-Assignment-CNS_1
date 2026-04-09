@@ -2,12 +2,12 @@
 #define __MMHAL_H__
 
 #include <stdint.h>
-#define BTN_LEFT     27
-#define BTN_RIGHT    26
-#define BTN_FORWARD  4
-#define BTN_BACKWARD 5
-#define BTN_UP       6
-#define BTN_DOWN     7
+#define BTN_LEFT     3
+#define BTN_RIGHT    19
+#define BTN_FORWARD  27
+#define BTN_BACKWARD 26
+#define BTN_UP       21
+#define BTN_DOWN     2
 
 ///////////////////////////////////////////////////////////////////////
 // Pins

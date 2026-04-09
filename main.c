@@ -26,6 +26,12 @@ const uint btn_pins[BTN_COUNT] = {27, 26, 4, 5, 6, 7};                      // L
 volatile bool btn_states[BTN_COUNT] = {true, true, true, true, true, true}; // released = true
 volatile bool btn_state_changed = false;
 
+// Function prototype for moving X axis
+void move_x(int steps, bool direction);
+
+// Step size for each button press
+#define STEP_SIZE 100
+
 // -------- BASIC FUNCTIONS --------
 int mm_to_steps(float mm, float steps_per_mm)
 {
@@ -187,132 +193,80 @@ void command_control(int ch)
         i = 0;
         return;
     }
-
-    if (ch == '\n' || ch == '\r')
-    {
-        buffer[i] = '\0';
-        printf("CMD: %s\n", buffer);
-
-        // Units
-        if (strcmp(buffer, "G20") == 0)
-        {
-            unit_scale = INCH;
-            printf("Units: INCH\n");
-        }
-        else if (strcmp(buffer, "G21") == 0)
-        {
-            unit_scale = MM;
-            printf("Units: MM\n");
-        }
-
-        // Spindle
-        else if (strncmp(buffer, "M3", 2) == 0)
-        {
-            int speed = 30000;
-            char *p = strchr(buffer, 'S');
-            if (p)
-                speed = atoi(p + 1);
-            spindle_set_speed(speed);
-        }
-        else if (strcmp(buffer, "M5") == 0)
-        {
-            spindle_set_speed(0);
-        }
-
-        // Exit
-        else if (strcmp(buffer, "M02") == 0)
-        {
-            manual_mode = true;
-            printf("Manual mode\n");
-        }
-
-        // Move
-        else if (strncmp(buffer, "G00", 3) == 0 || strncmp(buffer, "G0", 2) == 0)
-        {
-            float x = 0, y = 0, z = 0;
-            char *p;
-            if ((p = strchr(buffer, 'X')))
-                x = atof(p + 1) * unit_scale;
-            if ((p = strchr(buffer, 'Y')))
-                y = atof(p + 1) * unit_scale;
-            if ((p = strchr(buffer, 'Z')))
-                z = atof(p + 1) * unit_scale;
-
-            int xs = mm_to_steps(x, STEPS_PER_MM_X);
-            int ys = mm_to_steps(y, STEPS_PER_MM_Y);
-            int zs = mm_to_steps(z, STEPS_PER_MM_Z);
-
-            if (xs)
-                move_x(abs(xs), xs > 0);
-            if (ys)
-                move_y(abs(ys), ys > 0);
-            if (zs)
-                move_z(abs(zs), zs > 0);
-        }
-
-        i = 0;
-    }
-    else
-    {
-        if (i < 63)
-            buffer[i++] = ch;
-    }
-
-    // Inside command_control after reading a line
-    if (strncmp(buffer, "G04", 3) == 0)
-    {
-        char *p = strchr(buffer, 'P'); // find P parameter
-        if (p)
-        {
-            uint32_t dwell_time = atoi(p + 1); // convert to milliseconds
-            mmhal_dwell_ms(dwell_time);        // pause machine
-        }
-    }
 }
-// -------- BUTTON INTERRUPTS --------
-void on_btn_gpio_change(uint gpio, uint32_t events)
+void setup_buttons()
 {
-    for (int i = 0; i < BTN_COUNT; i++)
+    // Initialize button pins as input with pull-up resistors
+    gpio_init(BTN_LEFT);
+    gpio_set_dir(BTN_LEFT, GPIO_IN);
+    gpio_pull_up(BTN_LEFT);
+
+    gpio_init(BTN_RIGHT);
+    gpio_set_dir(BTN_RIGHT, GPIO_IN);
+    gpio_pull_up(BTN_RIGHT);
+
+    gpio_init(BTN_FORWARD);
+    gpio_set_dir(BTN_FORWARD, GPIO_IN);
+    gpio_pull_up(BTN_FORWARD);
+
+    gpio_init(BTN_BACKWARD);
+    gpio_set_dir(BTN_BACKWARD, GPIO_IN);
+    gpio_pull_up(BTN_BACKWARD);
+
+    gpio_init(BTN_UP);
+    gpio_set_dir(BTN_UP, GPIO_IN);
+    gpio_pull_up(BTN_UP);
+
+    gpio_init(BTN_DOWN);
+    gpio_set_dir(BTN_DOWN, GPIO_IN);
+    gpio_pull_up(BTN_DOWN);
+}
+
+// Reads button states and moves X axis accordingly
+void read_buttons()
+{
+    // Buttons are active-low (pressed = 0)
+    bool left_pressed = (gpio_get(BTN_LEFT) == 0);
+    bool right_pressed = (gpio_get(BTN_RIGHT) == 0);
+    bool forward_pressed = (gpio_get(BTN_FORWARD) == 0);
+    bool backward_pressed = (gpio_get(BTN_BACKWARD) == 0);
+    bool up_pressed = (gpio_get(BTN_UP) == 0);
+    bool down_pressed = (gpio_get(BTN_DOWN) == 0);
+
+    if (left_pressed)
     {
-        if (gpio == btn_pins[i])
-        {
-            if (events & GPIO_IRQ_EDGE_RISE)
-                btn_states[i] = false; // pressed (HIGH)
-            else if (events & GPIO_IRQ_EDGE_FALL)
-                btn_states[i] = true; // released (LOW)
-            btn_state_changed = true;
-            break;
-        }
+        move_x(STEP_SIZE, false); // Move X left
+        printf("Moving X left by %d steps\n", STEP_SIZE);
+    }
+
+    if (right_pressed)
+    {
+        move_x(STEP_SIZE, true); // Move X right
+        printf("Moving X right by %d steps\n", STEP_SIZE);
+    }
+
+    if (forward_pressed)
+    {
+        move_y(STEP_SIZE, true); // forward = positive Y
+        printf("Moving Y forward by %d steps\n", STEP_SIZE);
+    }
+    if (backward_pressed)
+    {
+        move_y(STEP_SIZE, false); // backward = negative Y
+        printf("Moving Y backward by %d steps\n", STEP_SIZE);
+    }
+    if (up_pressed)
+    {
+        move_z(STEP_SIZE, true); // up = positive Z
+        printf("Moving Z up by %d steps\n", STEP_SIZE);
+    }
+    if (down_pressed)
+    {
+        move_z(STEP_SIZE, false); // down = negative Z
+        printf("Moving Z down by %d steps\n", STEP_SIZE);
     }
 }
 
-void init_btns()
-{
-    for (int i = 0; i < BTN_COUNT; i++)
-    {
-        gpio_init(btn_pins[i]);
-        gpio_set_dir(btn_pins[i], GPIO_IN);
-        // NO internal pull-up since you have external 10k to GND
-        gpio_set_irq_enabled_with_callback(btn_pins[i], GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &on_btn_gpio_change);
-    }
-}
-
-void process_btn_actions()
-{
-    int step = 200; // step size
-    if (!btn_states[0])
-        move_x(step, false); // LEFT
-    if (!btn_states[1])
-        move_x(step, true); // RIGHT
-    if (!btn_states[2])
-        move_y(step, false); // FORWARD
-    if (!btn_states[3])
-        move_y(step, true); // BACKWARD
-    if (!btn_states[4])
-        move_z(step, true); // UP
-    if (!btn_states[5])
-        move_z(step, false); // DOWN
-}
 // -------- MAIN --------
 int main()
 {
@@ -370,19 +324,20 @@ int main()
     gpio_set_dir(BTN_DOWN, GPIO_IN);
     gpio_pull_up(BTN_DOWN);
 
+    // Initialize spindle PWM
     spindle_init();
 
+    // Setup buttons
+    setup_buttons();
+
+    // Hardware test
     printf("Hardware test running\n");
     hardware_test();
 
     while (true)
     {
-        // Handle button presses
-        if (btn_state_changed)
-        {
-            process_btn_actions();
-            btn_state_changed = false;
-        }
+        read_buttons();
+        sleep_ms(50);
 
         int ch = getchar_timeout_us(100);
 
