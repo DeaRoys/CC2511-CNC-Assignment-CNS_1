@@ -159,6 +159,12 @@ void manual_control(int ch)
         mmhal_spindle_stop();
         break;
 
+        // Pause
+    case 'p':
+        printf("Pausing machine for 1 second\n");
+        mmhal_dwell_ms(1000); // 1000 ms pause
+        break;
+
     // Mode switch
     case 'm':
         manual_mode = false;
